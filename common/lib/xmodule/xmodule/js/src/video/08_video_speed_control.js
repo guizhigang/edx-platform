@@ -5,350 +5,332 @@ define(
 'video/08_video_speed_control.js',
 [],
 function () {
-
-    // VideoSpeedControl() function - what this module "exports".
-    return function (state) {
-        var dfd = $.Deferred();
-
-        if (state.isTouch) {
-            // iOS doesn't support speed change
-            state.el.find('div.speeds').remove();
-            dfd.resolve();
-            return dfd.promise();
+    "use strict";
+    var VideoSpeedControl = function (state) {
+        if (!(this instanceof VideoSpeedControl)) {
+            return new VideoSpeedControl(state);
         }
 
-        state.videoSpeedControl = {};
+        this.state = state;
+        this.state.VideoSpeedControl = this;
+        this.initialize();
 
-        _initialize(state);
-        dfd.resolve();
-
-        if (state.videoType === 'html5' && !(_checkPlaybackRates())) {
-            console.log(
-                '[Video info]: HTML5 mode - playbackRate is not supported.'
-            );
-
-            _hideSpeedControl(state);
-        }
-
-        return dfd.promise();
+        return $.Deferred().resolve().promise();
     };
 
-    // ***************************************************************
-    // Private functions start here.
-    // ***************************************************************
+    VideoSpeedControl.prototype = {
+        initialize: function () {
+            var state = this.state;
 
-    function _initialize(state) {
-        _makeFunctionsPublic(state);
-        _renderElements(state);
-        _bindHandlers(state);
-    }
+            this.el = state.el.find('div.speeds');
+            /** @todo Fix class name */
+            this.videoSpeedsEl = this.el.find('.video_speeds');
 
-    // function _makeFunctionsPublic(state)
-    //
-    //     Functions which will be accessible via 'state' object. When called,
-    //     these functions will get the 'state' object as a context.
-    function _makeFunctionsPublic(state) {
-        var methodsDict = {
-            changeVideoSpeed: changeVideoSpeed,
-            reRender: reRender,
-            setSpeed: setSpeed
-        };
-
-        state.bindTo(methodsDict, state.videoSpeedControl, state);
-    }
-
-    // function _renderElements(state)
-    //
-    //     Create any necessary DOM elements, attach them, and set their
-    //     initial configuration. Also make the created DOM elements available
-    //     via the 'state' object. Much easier to work this way - you don't
-    //     have to do repeated jQuery element selects.
-    function _renderElements(state) {
-        state.videoSpeedControl.speeds = state.speeds;
-
-        state.videoSpeedControl.el = state.el.find('div.speeds');
-
-        state.videoSpeedControl.videoSpeedsEl = state.videoSpeedControl.el
-            .find('.video_speeds');
-
-        state.videoControl.secondaryControlsEl.prepend(
-            state.videoSpeedControl.el
-        );
-
-        $.each(state.videoSpeedControl.speeds, function (index, speed) {
-            var link = '<a class="speed_link" href="#">' + speed + 'x</a>';
-
-            state.videoSpeedControl.videoSpeedsEl
-                .prepend(
-                    $('<li data-speed="' + speed + '">' + link + '</li>')
+            if (!isPlaybackRatesSupported(state)) {
+                console.log(
+                    '[Video info]: playbackRate is not supported.'
                 );
-        });
+                this.el.remove();
 
-        state.videoSpeedControl.setSpeed(state.speed);
-    }
-
-    /**
-     * @desc Check if playbackRate supports by browser.
-     *
-     * @type {function}
-     * @access private
-     *
-     * @param {object} state The object containg the state of the video player.
-     *     All other modules, their parameters, public variables, etc. are
-     *     available via this object.
-     *
-     * @this {object} The global window object.
-     *
-     * @returns {Boolean}
-     *       true: Browser support playbackRate functionality.
-     *       false: Browser doesn't support playbackRate functionality.
-     */
-    function _checkPlaybackRates() {
-        var video = document.createElement('video');
-
-        // If browser supports, 1.0 should be returned by playbackRate
-        // property. In this case, function return True. Otherwise, False will
-        // be returned.
-        return Boolean(video.playbackRate);
-    }
-
-    // Hide speed control.
-    function _hideSpeedControl(state) {
-        state.el.find('div.speeds').hide();
-    }
-
-    // Get previous element in array or cyles back to the last if it is the
-    // first.
-    function _previousSpeedLink(speedLinks, index) {
-        return $(speedLinks.eq(index < 1 ? speedLinks.length - 1 : index - 1));
-    }
-
-    // Get next element in array or cyles back to the first if it is the last.
-    function _nextSpeedLink(speedLinks, index) {
-        return $(speedLinks.eq(index >= speedLinks.length - 1 ? 0 : index + 1));
-    }
-
-    function _speedLinksFocused(state) {
-        var speedLinks = state.videoSpeedControl.videoSpeedsEl
-                                                .find('a.speed_link');
-        return speedLinks.is(':focus');
-    }
-
-    function _openMenu(state) {
-        // When speed entries have focus, the menu stays open on
-        // mouseleave. A clickHandler is added to the window
-        // element to have clicks close the menu when they happen
-        // outside of it.
-        $(window).on('click.speedMenu', _clickHandler.bind(state));
-        state.videoSpeedControl.el.addClass('open');
-    }
-
-    function _closeMenu(state) {
-        // Remove the previously added clickHandler from window element.
-        $(window).off('click.speedMenu');
-        state.videoSpeedControl.el.removeClass('open');
-    }
-
-    // Various event handlers. They all return false to stop propagation and
-    // prevent default behavior.
-    function _clickHandler(event) {
-        var target = $(event.currentTarget);
-
-        this.videoSpeedControl.el.removeClass('open');
-        if (target.is('a.speed_link')) {
-            this.videoSpeedControl.changeVideoSpeed.call(this, event);
-        }
-
-        return false;
-    }
-
-    // We do not use _openMenu and _closeMenu in the following two handlers
-    // because we do not want to add an unnecessary clickHandler to the window
-    // element.
-    function _mouseEnterHandler(event) {
-        this.videoSpeedControl.el.addClass('open');
-
-        return false;
-    }
-
-    function _mouseLeaveHandler(event) {
-        // Only close the menu is no speed entry has focus.
-        if (!_speedLinksFocused(this)) {
-            this.videoSpeedControl.el.removeClass('open');
-        }
-                
-        return false;
-    }
-
-    function _keyDownHandler(event) {
-        var KEY = $.ui.keyCode,
-            keyCode = event.keyCode,
-            target = $(event.currentTarget),
-            speedButtonLink = this.videoSpeedControl.el.children('a'),
-            speedLinks = this.videoSpeedControl.videoSpeedsEl
-                                               .find('a.speed_link'),
-            index;
-
-        if (target.is('a.speed_link')) {
-
-            index = target.parent().index();
-
-            switch (keyCode) {
-                // Scroll up menu, wrapping at the top. Keep menu open.
-                case KEY.UP:
-                    _previousSpeedLink(speedLinks, index).focus();
-                    break;
-                // Scroll down  menu, wrapping at the bottom. Keep menu
-                // open.
-                case KEY.DOWN:
-                    _nextSpeedLink(speedLinks, index).focus();
-                    break;
-                // Close menu.
-                case KEY.TAB:
-                    _closeMenu(this);
-                    // Set focus to previous menu button in menu bar
-                    // (Play/Pause button)
-                    if (event.shiftKey) {
-                        this.videoControl.playPauseEl.focus();
-                    }
-                    // Set focus to next menu button in menu bar
-                    // (Volume button)
-                    else {
-                        this.videoVolumeControl.buttonEl.focus();
-                    }
-                    break;
-                // Close menu, give focus to speed control and change
-                // speed.
-                case KEY.ENTER:
-                case KEY.SPACE:
-                    _closeMenu(this);
-                    speedButtonLink.focus();
-                    this.videoSpeedControl.changeVideoSpeed.call(this, event);
-                    break;
-                // Close menu and give focus to speed control.
-                case KEY.ESCAPE:
-                    _closeMenu(this);
-                    speedButtonLink.focus();
-                    break;
+                return false;
             }
+
+
+            this.render();
+            this.bindHandlers();
+
+            return true;
+        },
+        // function _renderElements(state)
+        //
+        //     Create any necessary DOM elements, attach them, and set their
+        //     initial configuration. Also make the created DOM elements available
+        //     via the 'state' object. Much easier to work this way - you don't
+        //     have to do repeated jQuery element selects.
+        render: function () {
+            var self = this,
+                state = this.state;
+
+            /** @todo Remove this dependency */
+            state.videoControl.secondaryControlsEl.prepend(this.el);
+
+            var speeds = $.map(state.speeds.reverse(), function (speed, index) {
+                return [
+                    '<li data-speed="', speed, '" role="presentation">',
+                        /** @todo Fix class name */
+                        '<a class="speed_link" href="#" role="menuitem">',
+                            speed, 'x',
+                        '</a>',
+                    '</li>'
+                ].join('');
+            });
+
+            this.videoSpeedsEl.append($(speeds));
+            this.setSpeed(state.speed);
+        },
+
+        /**
+         * @desc Check if playbackRate supports by browser.
+         *     If browser supports, 1.0 should be returned by playbackRate
+         *     property. In this case, function return True. Otherwise, False will
+         *     be returned.
+         *     iOS doesn't support speed change.
+         *
+         * @param {string} videoType Type of the video player
+         *
+         * @this {object} The global window object.
+         *
+         * @returns {Boolean}
+         *       true: Browser support playbackRate functionality.
+         *       false: Browser doesn't support playbackRate functionality.
+         */
+        isPlaybackRatesSupported: function (state) {
+            var isHtml5 = state.videoType === 'html5',
+                isTouch = state.isTouch,
+                video = document.createElement('video');
+
+            return !isTouch || (isHtml5 && !Boolean(video.playbackRate));
+        },
+
+        // Hide speed control.
+        hideSpeedControl: function () {
+            this.el.remove();
+        },
+
+        // Get previous element in array or cyles back to the last if it is the
+        // first.
+        getPreviousSpeedLink: function (speedLinks, index) {
+            return $(speedLinks.eq(index < 1 ? speedLinks.length - 1 : index - 1));
+        },
+
+        // Get next element in array or cyles back to the first if it is the last.
+        getNextSpeedLink: function (speedLinks, index) {
+            return $(speedLinks.eq(index >= speedLinks.length - 1 ? 0 : index + 1));
+        },
+
+        isSpeedLinksFocused: function () {
+            /** @todo Fix class name */
+            var speedLinks = this.videoSpeedsEl.find('a.speed_link');
+
+            return speedLinks.is(':focus');
+        },
+
+        openMenu: function () {
+            // When speed entries have focus, the menu stays open on
+            // mouseleave. A clickHandler is added to the window
+            // element to have clicks close the menu when they happen
+            // outside of it.
+            $(window).on('click.speedMenu', this.clickHandler.bind(this));
+            this.el.addClass('open');
+        },
+
+        closeMenu: function () {
+            // Remove the previously added clickHandler from window element.
+            $(window).off('click.speedMenu');
+            this.el.removeClass('open');
+        },
+
+        // Various event handlers. They all return false to stop propagation and
+        // prevent default behavior.
+        clickHandler: function (event) {
+            var target = $(event.currentTarget);
+
+            this.el.removeClass('open');
+            /** @todo Fix class name */
+            if (target.is('a.speed_link')) {
+                this.changeVideoSpeed.call(this, event);
+            }
+
             return false;
-        }
-        else {
-            switch(keyCode) {
-                // Open menu and focus on last element of list above it.
-                case KEY.ENTER:
-                case KEY.SPACE:
-                case KEY.UP:
-                    _openMenu(this);
-                    speedLinks.last().focus();
-                    break;
-                // Close menu.
-                case KEY.ESCAPE:
-                    _closeMenu(this);
-                    break;
+        },
+
+        // We do not use this.openMenu and this.closeMenu in the following two handlers
+        // because we do not want to add an unnecessary clickHandler to the window
+        // element.
+        mouseEnterHandler: function (event) {
+            /** @todo Use event.target */
+            this.el.addClass('open');
+
+            return false;
+        },
+
+        mouseLeaveHandler: function (event) {
+            // Only close the menu is no speed entry has focus.
+            if (!this.isSpeedLinksFocused()) {
+                /** @todo Use event.target */
+                this.el.removeClass('open');
             }
-            // We do not stop propagation and default behavior on a TAB
-            // keypress.
-            return event.keyCode === KEY.TAB;
-        }
-    }
+                    
+            return false;
+        },
 
-    /**
-     * @desc Bind any necessary function callbacks to DOM events (click,
-     *     mousemove, etc.).
-     *
-     * @type {function}
-     * @access private
-     *
-     * @param {object} state The object containg the state of the video player.
-     *     All other modules, their parameters, public variables, etc. are
-     *     available via this object.
-     *
-     * @this {object} The global window object.
-     *
-     * @returns {undefined}
-     */
-    function _bindHandlers(state) {
-        var speedButton = state.videoSpeedControl.el,
-            videoSpeeds = state.videoSpeedControl.videoSpeedsEl;
+        keyDownHandler: function (event) {
+            var KEY = $.ui.keyCode,
+                keyCode = event.keyCode,
+                target = $(event.currentTarget),
+                speedButtonLink = this.el.children('a'),
+                /** @todo Fix class name */
+                speedLinks = this.videoSpeedsEl.find('a.speed_link'),
+                index;
 
-        // Attach various events handlers to the speed menu button.
-        speedButton.on({
-            'mouseenter': _mouseEnterHandler.bind(state),
-            'mouseleave': _mouseLeaveHandler.bind(state),
-            'click': _clickHandler.bind(state),
-            'keydown': _keyDownHandler.bind(state)
-        });
+            /** @todo Fix class name */
+            if (target.is('a.speed_link')) {
+                index = target.parent().index();
 
-        // Attach click and keydown event handlers to the individual speed
-        // entries.
-        videoSpeeds.on('click', 'a.speed_link', _clickHandler.bind(state))
-                   .on('keydown', 'a.speed_link', _keyDownHandler.bind(state));
-    }
+                switch (keyCode) {
+                    // Scroll up menu, wrapping at the top. Keep menu open.
+                    case KEY.UP:
+                        this.getPreviousSpeedLink(speedLinks, index).focus();
+                        break;
+                    // Scroll down  menu, wrapping at the bottom. Keep menu
+                    // open.
+                    case KEY.DOWN:
+                        this.getNextSpeedLink(speedLinks, index).focus();
+                        break;
+                    // Close menu.
+                    case KEY.TAB:
+                        this.closeMenu();
+                        // Set focus to previous menu button in menu bar
+                        // (Play/Pause button)
+                        if (event.shiftKey) {
+                            /** @todo Remove dependency */
+                            this.videoControl.playPauseEl.focus();
+                        }
+                        // Set focus to next menu button in menu bar
+                        // (Volume button)
+                        else {
+                            /** @todo Remove dependency */
+                            this.videoVolumeControl.buttonEl.focus();
+                        }
+                        break;
+                    // Close menu, give focus to speed control and change
+                    // speed.
+                    case KEY.ENTER:
+                    case KEY.SPACE:
+                        this.closeMenu();
+                        speedButtonLink.focus();
+                        this.changeVideoSpeed.call(this, event);
+                        break;
+                    // Close menu and give focus to speed control.
+                    case KEY.ESCAPE:
+                        this.closeMenu();
+                        speedButtonLink.focus();
+                        break;
+                }
+                return false;
+            } else {
+                switch(keyCode) {
+                    // Open menu and focus on last element of list above it.
+                    case KEY.ENTER:
+                    case KEY.SPACE:
+                    case KEY.UP:
+                        this.openMenu();
+                        speedLinks.last().focus();
+                        break;
+                    // Close menu.
+                    case KEY.ESCAPE:
+                        this.closeMenu();
+                        break;
+                }
+                // We do not stop propagation and default behavior on a TAB
+                // keypress.
+                return event.keyCode === KEY.TAB;
+            }
+        },
 
-    // ***************************************************************
-    // Public functions start here.
-    // These are available via the 'state' object. Their context ('this'
-    // keyword) is the 'state' object. The magic private function that makes
-    // them available and sets up their context is makeFunctionsPublic().
-    // ***************************************************************
+        /**
+         * @desc Bind any necessary function callbacks to DOM events (click,
+         *     mousemove, etc.).
+         *
+         */
+        bindHandlers: function () {
+            // Attach various events handlers to the speed menu button.
+            this.el.on({
+                'mouseenter': this.mouseEnterHandler.bind(this),
+                'mouseleave': this.mouseLeaveHandler.bind(this),
+                'click': this.clickHandler.bind(this),
+                'keydown': this.keyDownHandler.bind(this)
+            });
 
-    function setSpeed(speed) {
-        this.videoSpeedControl.videoSpeedsEl.find('li').removeClass('active');
-        this.videoSpeedControl.videoSpeedsEl
-            .find("li[data-speed='" + speed + "']")
-            .addClass('active');
-        this.videoSpeedControl.el.find('p.active').html('' + speed + 'x');
-    }
+            // Attach click and keydown event handlers to the individual speed
+            // entries.
+            this.videoSpeedsEl.on({
+                click: this.clickHandler.bind(this),
+                keydown: this.keyDownHandler.bind(this)
+            /** @todo Fix class name */
+            }, 'a.speed_link');
+        },
 
-    function changeVideoSpeed(event) {
-        var parentEl = $(event.target).parent();
+        setSpeed: function (speed) {
+            this.videoSpeedsEl
+                .find('li')
+                    /** @todo Fix class name */
+                    .removeClass('active')
+                .filter("li[data-speed='" + speed + "']")
+                    /** @todo Fix class name */
+                    .addClass('active');
 
-        event.preventDefault();
+            /** @todo Fix class name */
+            this.el.find('p.active').html('' + speed + 'x');
+        },
 
-        if (!parentEl.hasClass('active')) {
-            this.videoSpeedControl.currentSpeed = parentEl.data('speed');
+        changeVideoSpeed: function (event) {
+            var parentEl = $(event.target).parent();
 
-            this.videoSpeedControl.setSpeed(
-                // To meet the API expected format.
-                parseFloat(this.videoSpeedControl.currentSpeed)
-                    .toFixed(2)
-                    .replace(/\.00$/, '.0')
-            );
+            /** @todo Fix class name */
+            if (!parentEl.hasClass('active')) {
+                this.currentSpeed = parentEl.data('speed');
 
-            this.trigger(
-                'videoPlayer.onSpeedChange',
-                this.videoSpeedControl.currentSpeed
-            );
-        }
-    }
+                /** @todo Move conversion to setSpeed */
+                this.setSpeed(
+                    // To meet the API expected format.
+                    parseFloat(this.currentSpeed)
+                        .toFixed(2)
+                        .replace(/\.00$/, '.0')
+                );
 
-    function reRender(params) {
-        var _this = this;
-
-        this.videoSpeedControl.videoSpeedsEl.empty();
-        this.videoSpeedControl.videoSpeedsEl.find('li').removeClass('active');
-        this.videoSpeedControl.speeds = params.newSpeeds;
-
-        $.each(this.videoSpeedControl.speeds, function (index, speed) {
-            var link, listItem;
-
-            link = '<a class="speed_link" href="#" role="menuitem">' + speed + 'x</a>';
-
-            listItem = $('<li data-speed="' + speed + '" role="presentation">' + link + '</li>');
-
-            if (speed === params.currentSpeed) {
-                listItem.addClass('active');
+                /** @todo Remove dependency */
+                this.state.trigger(
+                    'videoPlayer.onSpeedChange',
+                    this.currentSpeed
+                );
             }
 
-            _this.videoSpeedControl.videoSpeedsEl.prepend(listItem);
-        });
+            event.preventDefault();
+        },
 
-        // Re-attach all events with their appropriate callbacks to the
-        // newly generated elements.
-        _bindHandlers(this);
-    }
+        reRender: function (params) {
+            var self = this;
 
+            this.videoSpeedsEl
+                .empty()
+                /** @todo Do we really need this REMOVE? */
+                .find('li').removeClass('active');
+
+            /** @todo Check it */
+            this.state.speeds = params.newSpeeds;
+
+            var speeds = $.map(state.speeds.reverse(), function (speed, index) {
+                return [
+                    '<li data-speed="', speed, '" role="presentation">',
+                        /** @todo Fix class name */
+                        '<a class="speed_link" href="#" role="menuitem">',
+                            speed, 'x',
+                        '</a>',
+                    '</li>'
+                ].join('');
+            });
+
+            this.videoSpeedsEl.append($(speeds));
+            this.setSpeed(params.currentSpeed);
+
+            // Re-attach all events with their appropriate callbacks to the
+            // newly generated elements.
+
+            /** @todo USe event delegation */
+            this.bindHandlers();
+        }
+    };
 });
 
 }(RequireJS.requirejs, RequireJS.require, RequireJS.define));
