@@ -590,13 +590,7 @@ function (HTML5Video, Resizer) {
                     _this.speeds.push(key);
                 });
 
-                this.trigger(
-                    'videoSpeedControl.reRender',
-                    {
-                        newSpeeds: this.speeds,
-                        currentSpeed: this.speed
-                    }
-                );
+                this.el.trigger('speed:render', [this.speeds, this.speed]);
                 this.setSpeed(this.speed);
                 this.trigger('videoSpeedControl.setSpeed', this.speed);
             }

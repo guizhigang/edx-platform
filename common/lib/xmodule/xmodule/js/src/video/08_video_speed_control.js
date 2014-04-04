@@ -1,6 +1,4 @@
 (function (requirejs, require, define) {
-
-// VideoSpeedControl module.
 define(
 'video/08_video_speed_control.js',
 [],
@@ -26,7 +24,7 @@ function () {
             /** @todo Fix class name */
             this.videoSpeedsEl = this.el.find('.video_speeds');
 
-            if (!isPlaybackRatesSupported(state)) {
+            if (!this.isPlaybackRatesSupported(state)) {
                 console.log(
                     '[Video info]: playbackRate is not supported.'
                 );
@@ -35,8 +33,10 @@ function () {
                 return false;
             }
 
+            /** @todo Remove this dependency */
+            state.videoControl.secondaryControlsEl.prepend(this.el);
 
-            this.render();
+            this.render(state.speeds, state.speed);
             this.bindHandlers();
 
             return true;
@@ -47,26 +47,25 @@ function () {
         //     initial configuration. Also make the created DOM elements available
         //     via the 'state' object. Much easier to work this way - you don't
         //     have to do repeated jQuery element selects.
-        render: function () {
+        render: function (speeds, currentSpeed) {
             var self = this,
                 state = this.state;
 
-            /** @todo Remove this dependency */
-            state.videoControl.secondaryControlsEl.prepend(this.el);
+            this.videoSpeedsEl.empty();
 
-            var speeds = $.map(state.speeds.reverse(), function (speed, index) {
-                return [
+            var speedsList = $.map(speeds.reverse(), function (speed, index) {
+                return $([
                     '<li data-speed="', speed, '" role="presentation">',
                         /** @todo Fix class name */
                         '<a class="speed_link" href="#" role="menuitem">',
                             speed, 'x',
                         '</a>',
                     '</li>'
-                ].join('');
+                ].join(''))[0];
             });
 
-            this.videoSpeedsEl.append($(speeds));
-            this.setSpeed(state.speed);
+            this.videoSpeedsEl.append(speedsList);
+            this.setSpeed(currentSpeed);
         },
 
         /**
@@ -244,6 +243,8 @@ function () {
          *
          */
         bindHandlers: function () {
+            var self = this;
+
             // Attach various events handlers to the speed menu button.
             this.el.on({
                 'mouseenter': this.mouseEnterHandler.bind(this),
@@ -259,6 +260,10 @@ function () {
                 keydown: this.keyDownHandler.bind(this)
             /** @todo Fix class name */
             }, 'a.speed_link');
+
+            this.state.el.on('speed:render', function (event, speeds, currentSpeed) {
+                self.render(speeds, currentSpeed);
+            });
         },
 
         setSpeed: function (speed) {
@@ -297,40 +302,10 @@ function () {
             }
 
             event.preventDefault();
-        },
-
-        reRender: function (params) {
-            var self = this;
-
-            this.videoSpeedsEl
-                .empty()
-                /** @todo Do we really need this REMOVE? */
-                .find('li').removeClass('active');
-
-            /** @todo Check it */
-            this.state.speeds = params.newSpeeds;
-
-            var speeds = $.map(state.speeds.reverse(), function (speed, index) {
-                return [
-                    '<li data-speed="', speed, '" role="presentation">',
-                        /** @todo Fix class name */
-                        '<a class="speed_link" href="#" role="menuitem">',
-                            speed, 'x',
-                        '</a>',
-                    '</li>'
-                ].join('');
-            });
-
-            this.videoSpeedsEl.append($(speeds));
-            this.setSpeed(params.currentSpeed);
-
-            // Re-attach all events with their appropriate callbacks to the
-            // newly generated elements.
-
-            /** @todo USe event delegation */
-            this.bindHandlers();
         }
     };
+
+    return VideoSpeedControl;
 });
 
 }(RequireJS.requirejs, RequireJS.require, RequireJS.define));
